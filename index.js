@@ -94,26 +94,50 @@ app.post('/api/users/:_id/exercises', async function (req, res) {
 }
 )
 
-app.get('/api/users/:_id/logs', function (req, res) {
+app.get('/api/users/:_id/logs', async function (req, res) {
   let logId = req.params._id;
-  let fromDate = req.query.from ? new Date(req.query.from) : null;
-  let toDate = req.query.to ? new Date(req.query.to) : null;
+  let fromDate = req.query.from ? new Date(req.query.from).toISOString() : null;
+  let toDate = req.query.to ? new Date(req.query.to).toISOString() : null;
   let limit = req.query.limit ? { limit: req.query.limit } : {};
 
-  let matchQuery = {};
+  let isMatchQuery = fromDate || toDate ? true : false;
 
   // Create From and To date options and store in matchQuery object if needed.
   if (fromDate || toDate) {
-    matchQuery = `{ date : { $expr { ${fromDate ? "$gte: " + "ISODate(\"" + fromDate.toISOString() + "\")" : ""}${toDate && fromDate ? "," : ""} ${toDate ? "$lte: " + "ISODate(\"" + toDate.toISOString() + "\")" : ""} } } }`
+    // finding alternative solution as Date match on populate doesn't seem to work properly
+    // matchQuery = `{ date : { ${fromDate ? "$gte: " + fromDate : ""}${toDate && fromDate ? "," : ""} ${toDate ? "$lte: " + toDate : ""} } }`
   }
 
-  console.log(matchQuery);
-
-  User.find({ _id: logId }).populate({ path: 'log', select: 'description duration name date', match: matchQuery, options: limit }).select('username count _id log').exec(function (err, data) {
-    if (err) return console.error(err);
-    console.log(data)
-    res.json(data);
+  let promise = new Promise((resolve, reject) => {
+    User.find({ _id: logId }).populate({ path: 'log', select: 'description duration name date', options: limit }).select('username count _id log').exec(function (err, data) {
+      if (err) return console.error(err);
+      resolve(data);
+    })
   })
+
+  let data = await promise
+  data = data[0]
+  console.log(data)
+
+  if (isMatchQuery) {
+    let dates = data.log;
+    console.log(dates);
+    let result;
+    if (fromDate) {
+      console.log("filter fromDate")
+      result = dates.filter((item) => new Date(item.date).getTime() > new Date(fromDate).getTime())
+    }
+    if (toDate) {
+      console.log("filter fromDate")
+      result = dates.filter((item) => new Date(item.date).getTime() < new Date(toDate).getTime())
+    }
+    if (fromDate && toDate) {
+      console.log("double filter")
+      result = dates.filter((item) => new Date(item.date).getTime() < new Date(toDate).getTime() && new Date(item.date).getTime() > new Date(fromDate).getTime())
+    }
+    data.log = result;
+  }
+  res.json(data);
 })
 
 const listener = app.listen(process.env.PORT || 3000, () => {
