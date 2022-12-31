@@ -35,13 +35,13 @@ let Exercise = Mongoose.model('Exercise', exerciseSchema);
 let userProjection = { username: 1 };
 
 // Post request to add a new user
-app.post('/api/users/', function (req, res) {
+app.post('/api/users/', function(req, res) {
   let username = req.body.username
-  User.findOne({ username: username }, userProjection, function (err, data) {
+  User.findOne({ username: username }, userProjection, function(err, data) {
     if (err) return console.error(err)
     if (!data) {
       let user = new User({ username: username });
-      user.save(function (err, data) {
+      user.save(function(err, data) {
         if (err) return console.error(err);
         console.log("user " + user.username + " saved sucessfully in database");
         res.json({ username: data.username, _id: data._id }) // still needs to be formatted correctly
@@ -54,9 +54,9 @@ app.post('/api/users/', function (req, res) {
   })
 })
 
-app.get('/api/users/', async function (req, res) {
+app.get('/api/users/', async function(req, res) {
   let promise = new Promise((resolve, reject) => {
-    User.find({}).select(userProjection).exec(function (err, data) {
+    User.find({}).select(userProjection).exec(function(err, data) {
       if (err) return console.error(err);
       resolve(data);
     })
@@ -65,11 +65,11 @@ app.get('/api/users/', async function (req, res) {
   res.send(JSON.stringify(users));
 })
 
-app.post('/api/users/:_id/exercises', async function (req, res) {
+app.post('/api/users/:_id/exercises', async function(req, res) {
   let id = req.params._id;
   let description = req.body.description;
   let duration = req.body.duration;
-  let date = req.body.date ? req.body.date : new Date();
+  let date = req.body.date ? new Date(req.body.date) : new Date();
   let newExercise = new Exercise({
     id: id,
     description: description,
@@ -77,26 +77,31 @@ app.post('/api/users/:_id/exercises', async function (req, res) {
     date: date
   })
   let promise = new Promise((resolve, reject) => {
-    newExercise.save(function (err, data) {
+    newExercise.save(function(err, data) {
       if (err) return console.error(err);
       console.log("Exercise " + newExercise.description + " for user " + newExercise.id + " saved sucessfully in database");
       resolve(data)
-      res.json(newExercise)
     })
   })
   let exerciseData = await promise
-  console.log(promise)
+
   User.findOneAndUpdate({ _id: id }, {
     "$inc": { "count": 1 },
     "$push": { "log": exerciseData._id }
-  }, function (err, data) {
+  }, function(err, data) {
     if (err) return console.error(err);
-    console.log('User log ' + data._id + ' updated')
+    res.json({
+      "_id": id,
+      "username": data.username,
+      "description": description,
+      "duration": parseInt(duration),
+      "date": date.toDateString(),
+    })
   })
 }
 )
 
-app.get('/api/users/:_id/logs', async function (req, res) {
+app.get('/api/users/:_id/logs', async function(req, res) {
   let logId = req.params._id;
   let fromDate = req.query.from ? new Date(req.query.from) : null;
   let toDate = req.query.to ? new Date(req.query.to) : null;
@@ -127,7 +132,7 @@ app.get('/api/users/:_id/logs', async function (req, res) {
   }
 
   let promise = new Promise((resolve, reject) => {
-    User.find({ _id: logId }).populate(populateQuery).select('username count _id log').exec(function (err, data) {
+    User.find({ _id: logId }).populate(populateQuery).select('username count _id log').exec(function(err, data) {
       if (err) return console.error(err);
       resolve(data);
     })
