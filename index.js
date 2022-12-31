@@ -120,19 +120,13 @@ app.get('/api/users/:_id/logs', async function (req, res) {
     } else if (toDate) {
       populateQuery.match = { date: { $gte: toDate } }
     }
-    //matchQuery = `${fromDate ? "$gte: " + fromDate.toISOString() : ""}${toDate && fromDate ? " , " : ""}${toDate ? "$lte: " + toDate.toISOString() : ""}`
   }
 
   if (limit != {}) {
     populateQuery.options = limit
   }
 
-  console.log(JSON.stringify(populateQuery))
-
-  // { path: 'log', select: 'description duration name date', match: { date: { matchQuery } }, options: limit }
-
   let promise = new Promise((resolve, reject) => {
-    console.log(matchQuery);
     User.find({ _id: logId }).populate(populateQuery).select('username count _id log').exec(function (err, data) {
       if (err) return console.error(err);
       resolve(data);
@@ -141,27 +135,14 @@ app.get('/api/users/:_id/logs', async function (req, res) {
 
   let data = await promise
 
-  data = data[0]
-  console.log(data)
-  /*
-  if (isMatchQuery) {
-    let dates = data.log;
-    console.log(dates);
-    let result;
-    if (fromDate) {
-      console.log("filter fromDate")
-      result = dates.filter((item) => new Date(item.date).getTime() > new Date(fromDate).getTime())
-    }
-    if (toDate) {
-      console.log("filter fromDate")
-      result = dates.filter((item) => new Date(item.date).getTime() < new Date(toDate).getTime())
-    }
-    if (fromDate && toDate) {
-      console.log("double filter")
-      result = dates.filter((item) => new Date(item.date).getTime() < new Date(toDate).getTime() && new Date(item.date).getTime() > new Date(fromDate).getTime())
-    }
-    data.log = result;
-  }*/
+  data = JSON.stringify(data[0]);
+  data = JSON.parse(data);
+
+  data.log.map((item) => {
+    item.date = new Date(item.date).toDateString();
+    return { ...item }
+  })
+
   res.json(data);
 })
 
