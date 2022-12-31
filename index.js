@@ -4,7 +4,9 @@ const app = express()
 const cors = require('cors')
 const Mongoose = require('mongoose')
 
-Mongoose.connect(process.env.MONGO_CONNECT, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false })
+Mongoose.set('strictQuery', true);
+Mongoose.set('debug', true)
+Mongoose.connect(process.env.MONGO_CONNECT, { useNewUrlParser: true, useUnifiedTopology: true })
 
 app.use(cors())
 app.use(express.json());
@@ -96,29 +98,52 @@ app.post('/api/users/:_id/exercises', async function (req, res) {
 
 app.get('/api/users/:_id/logs', async function (req, res) {
   let logId = req.params._id;
-  let fromDate = req.query.from ? new Date(req.query.from).toISOString() : null;
-  let toDate = req.query.to ? new Date(req.query.to).toISOString() : null;
+  let fromDate = req.query.from ? new Date(req.query.from) : null;
+  let toDate = req.query.to ? new Date(req.query.to) : null;
   let limit = req.query.limit ? { limit: req.query.limit } : {};
 
   let isMatchQuery = fromDate || toDate ? true : false;
-
+  let matchQuery;
   // Create From and To date options and store in matchQuery object if needed.
-  if (fromDate || toDate) {
-    // finding alternative solution as Date match on populate doesn't seem to work properly
-    // matchQuery = `{ date : { ${fromDate ? "$gte: " + fromDate : ""}${toDate && fromDate ? "," : ""} ${toDate ? "$lte: " + toDate : ""} } }`
+
+  let populateQuery = {
+    path: 'log',
+    select: 'description duration name date',
   }
 
+  if (isMatchQuery) {
+    // finding alternative solution as Date match on populate doesn't seem to work properly
+    if (fromDate && toDate) {
+      populateQuery.match = { date: { $gte: fromDate, $lte: toDate } }
+    } else if (fromDate) {
+      populateQuery.match = { date: { $gte: fromDate } }
+    } else if (toDate) {
+      populateQuery.match = { date: { $gte: toDate } }
+    }
+    //matchQuery = `${fromDate ? "$gte: " + fromDate.toISOString() : ""}${toDate && fromDate ? " , " : ""}${toDate ? "$lte: " + toDate.toISOString() : ""}`
+  }
+
+  if (limit != {}) {
+    populateQuery.options = limit
+  }
+
+  console.log(JSON.stringify(populateQuery))
+
+  // { path: 'log', select: 'description duration name date', match: { date: { matchQuery } }, options: limit }
+
   let promise = new Promise((resolve, reject) => {
-    User.find({ _id: logId }).populate({ path: 'log', select: 'description duration name date', options: limit }).select('username count _id log').exec(function (err, data) {
+    console.log(matchQuery);
+    User.find({ _id: logId }).populate(populateQuery).select('username count _id log').exec(function (err, data) {
       if (err) return console.error(err);
       resolve(data);
     })
   })
 
   let data = await promise
+
   data = data[0]
   console.log(data)
-
+  /*
   if (isMatchQuery) {
     let dates = data.log;
     console.log(dates);
@@ -136,7 +161,7 @@ app.get('/api/users/:_id/logs', async function (req, res) {
       result = dates.filter((item) => new Date(item.date).getTime() < new Date(toDate).getTime() && new Date(item.date).getTime() > new Date(fromDate).getTime())
     }
     data.log = result;
-  }
+  }*/
   res.json(data);
 })
 
